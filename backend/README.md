@@ -7,6 +7,7 @@ Real-time application performance monitoring backend using Go and eBPF/BCC tools
 - **Process Monitoring**: Track process execution events using `execsnoop`
 - **Network Monitoring**: Monitor TCP connections using `tcpconnect`
 - **Disk I/O Monitoring**: Analyze disk latency distribution using `biolatency`
+- **CPU Profiling**: Collect CPU stack traces for flame graph visualization using `profile-bpfcc`
 - **REST API**: Clean RESTful API for accessing metrics
 - **SQLite Storage**: Persistent storage of all collected metrics
 - **Real-time Collection**: Background collectors running continuously
@@ -96,13 +97,23 @@ curl http://localhost:8080/api/metrics/disk
 curl http://localhost:8080/api/metrics/disk?limit=10
 ```
 
+### Get CPU Profiling Data
+```bash
+# Get last 50 CPU profile samples (default)
+curl http://localhost:8080/api/metrics/cpuprofile
+
+# Get last 20 samples
+curl http://localhost:8080/api/metrics/cpuprofile?limit=20
+```
+
 ## Data Collection
 
-The application runs three background collectors:
+The application runs four background collectors:
 
 - **Process Collector**: Runs `execsnoop` continuously, streams events in real-time
 - **Network Collector**: Runs `tcpconnect` continuously, captures TCP connections as they happen
 - **Disk Collector**: Runs `biolatency` every 5 seconds to collect I/O latency histograms
+- **CPU Profile Collector**: Runs `profile-bpfcc` every 5 seconds to collect CPU stack traces for flame graph visualization
 
 Process and network events are captured immediately as they occur and saved to the database every second. This provides true real-time monitoring of system activity.
 
