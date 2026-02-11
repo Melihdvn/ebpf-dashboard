@@ -70,6 +70,21 @@ func createTables(db *sql.DB) error {
 			stack_trace TEXT,
 			sample_count INTEGER
 		);`,
+
+		// TCP lifecycle table
+		`CREATE TABLE IF NOT EXISTS tcp_lifecycle (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+			pid INTEGER,
+			comm TEXT,
+			local_addr TEXT,
+			local_port INTEGER,
+			remote_addr TEXT,
+			remote_port INTEGER,
+			tx_kb REAL,
+			rx_kb REAL,
+			duration_ms REAL
+		);`,
 	}
 
 	for _, schema := range schemas {
