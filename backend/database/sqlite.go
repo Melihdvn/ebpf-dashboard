@@ -85,6 +85,14 @@ func createTables(db *sql.DB) error {
 			rx_kb REAL,
 			duration_ms REAL
 		);`,
+
+		// Syscall statistics table
+		`CREATE TABLE IF NOT EXISTS syscall_stats (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+			syscall_name TEXT,
+			count INTEGER
+		);`,
 	}
 
 	for _, schema := range schemas {

@@ -29,6 +29,7 @@ func main() {
 	diskRepo := repository.NewDiskRepository(db)
 	cpuProfileRepo := repository.NewCPUProfileRepository(db)
 	tcpLifeRepo := repository.NewTCPLifeRepository(db)
+	syscallRepo := repository.NewSyscallRepository(db)
 
 	// Initialize services
 	processService := services.NewProcessService(processRepo)
@@ -36,6 +37,7 @@ func main() {
 	diskService := services.NewDiskService(diskRepo)
 	cpuProfileService := services.NewCPUProfileService(cpuProfileRepo)
 	tcpLifeService := services.NewTCPLifeService(tcpLifeRepo)
+	syscallService := services.NewSyscallService(syscallRepo)
 
 	// Start background collectors
 	processService.StartCollecting()
@@ -45,6 +47,7 @@ func main() {
 	if err := tcpLifeService.StartCollecting(); err != nil {
 		log.Printf("Failed to start tcplife collector: %v", err)
 	}
+	syscallService.Start()
 
 	// Initialize handlers
 	processHandler := handlers.NewProcessHandler(processService)
@@ -52,6 +55,7 @@ func main() {
 	diskHandler := handlers.NewDiskHandler(diskService)
 	cpuProfileHandler := handlers.NewCPUProfileHandler(cpuProfileService)
 	tcpLifeHandler := handlers.NewTCPLifeHandler(tcpLifeService)
+	syscallHandler := handlers.NewSyscallHandler(syscallService)
 	healthHandler := handlers.NewHealthHandler()
 
 	// Setup Gin router
@@ -65,6 +69,7 @@ func main() {
 		api.GET("/disk", diskHandler.GetLatestLatency)
 		api.GET("/cpuprofile", cpuProfileHandler.GetCPUProfiles)
 		api.GET("/tcplife", tcpLifeHandler.GetTCPLifeEvents)
+		api.GET("/syscalls", syscallHandler.GetSyscallStats)
 	}
 	router.GET("/health", healthHandler.GetHealth)
 
@@ -80,6 +85,7 @@ func main() {
 		diskService.StopCollecting()
 		cpuProfileService.Stop()
 		tcpLifeService.StopCollecting()
+		syscallService.Stop()
 		os.Exit(0)
 	}()
 
