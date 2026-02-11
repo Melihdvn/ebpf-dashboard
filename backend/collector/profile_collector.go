@@ -1,109 +1,180 @@
 package collector
 
 import (
+	"bufio"
+	"context"
 	"ebpf-dashboard/models"
-	"ebpf-dashboard/utils"
+	"io"
+	"log"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
+	"sync"
 )
 
-// CollectCPUProfile runs profile-bpfcc and returns parsed CPU profiling data
-func CollectCPUProfile() ([]models.CPUProfile, error) {
-	// Run profile-bpfcc: sample at 99 Hz for 1 second
-	// -F 99: frequency (99 samples per second)
-	// 1: duration in seconds
-	output, err := utils.ExecuteWithSudo(10*time.Second, "profile-bpfcc", "-F", "99", "1")
-	if err != nil {
-		// Even with error, we might have partial output
-		if len(output) == 0 {
-			return nil, err
-		}
-	}
-
-	return parseProfileOutput(string(output)), nil
+type CPUProfileCollector struct {
+	cmd     *exec.Cmd
+	cancel  context.CancelFunc
+	events  chan models.CPUProfile
+	mu      sync.Mutex
+	running bool
 }
 
-func parseProfileOutput(output string) []models.CPUProfile {
-	// profile-bpfcc output format:
-	// Stack trace lines followed by process name and count
-	// Example:
-	//     finish_task_switch
-	//     schedule
-	//     do_wait
-	//     sys_wait4
-	//     bash
-	//         5
-	//
-	// Empty line separates different stack traces
+func NewCPUProfileCollector() *CPUProfileCollector {
+	return &CPUProfileCollector{
+		events: make(chan models.CPUProfile, 100),
+	}
+}
 
-	var profiles []models.CPUProfile
-	lines := strings.Split(output, "\n")
+func (c *CPUProfileCollector) Start() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	var currentStack []string
-	var processName string
-
-	for i := 0; i < len(lines); i++ {
-		line := strings.TrimSpace(lines[i])
-
-		// Skip empty lines and header
-		if line == "" || strings.HasPrefix(line, "Sampling") {
-			// If we have accumulated a stack, save it
-			if len(currentStack) > 0 && processName != "" {
-				// The last element before count is the process name
-				stackTrace := strings.Join(currentStack, "\n")
-
-				// Look for the count on the next line
-				if i+1 < len(lines) {
-					countLine := strings.TrimSpace(lines[i+1])
-					if count, err := strconv.Atoi(countLine); err == nil {
-						profile := models.CPUProfile{
-							ProcessName: processName,
-							StackTrace:  stackTrace,
-							SampleCount: count,
-						}
-						profiles = append(profiles, profile)
-						i++ // Skip the count line
-					}
-				}
-
-				// Reset for next stack
-				currentStack = []string{}
-				processName = ""
-			}
-			continue
-		}
-
-		// Check if this line is a number (sample count)
-		if matched, _ := regexp.MatchString(`^\d+$`, line); matched {
-			// This is a count, process the accumulated stack
-			if len(currentStack) > 0 {
-				// Last item in stack is the process name
-				processName = currentStack[len(currentStack)-1]
-				// Remove process name from stack
-				stackLines := currentStack[:len(currentStack)-1]
-				stackTrace := strings.Join(stackLines, "\n")
-
-				count, _ := strconv.Atoi(line)
-
-				profile := models.CPUProfile{
-					ProcessName: processName,
-					StackTrace:  stackTrace,
-					SampleCount: count,
-				}
-				profiles = append(profiles, profile)
-
-				// Reset for next stack
-				currentStack = []string{}
-				processName = ""
-			}
-			continue
-		}
-
-		// This is a stack frame, add to current stack
-		currentStack = append(currentStack, line)
+	if c.running {
+		return nil
 	}
 
-	return profiles
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cancel = cancel
+
+	// Start profile-bpfcc: sample at 99 Hz, continuous mode with 5 second intervals
+	c.cmd = exec.CommandContext(ctx, "sudo", "profile-bpfcc", "-F", "99", "5")
+
+	stdout, err := c.cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	if err := c.cmd.Start(); err != nil {
+		log.Printf("Failed to start profile-bpfcc: %v", err)
+		return err
+	}
+
+	c.running = true
+	log.Println("profile-bpfcc collector started")
+
+	// Read output in a goroutine
+	go func() {
+		defer func() {
+			c.mu.Lock()
+			c.running = false
+			c.mu.Unlock()
+			log.Println("profile-bpfcc collector stopped")
+		}()
+
+		reader := bufio.NewReader(stdout)
+		var currentStack []string
+		var processName string
+
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err != io.EOF {
+					log.Printf("profile-bpfcc read error: %v", err)
+				}
+				break
+			}
+
+			line = strings.TrimSpace(line)
+
+			// Skip header and empty lines
+			if line == "" || strings.HasPrefix(line, "Sampling") {
+				// If we have accumulated a stack, save it
+				if len(currentStack) > 0 && processName != "" {
+					stackTrace := strings.Join(currentStack, "\n")
+					profile := models.CPUProfile{
+						ProcessName: processName,
+						StackTrace:  stackTrace,
+						SampleCount: 1, // Will be aggregated in service
+					}
+
+					// Send to channel (non-blocking)
+					select {
+					case c.events <- profile:
+					default:
+						// Channel full, skip this event
+					}
+
+					// Reset for next stack
+					currentStack = []string{}
+					processName = ""
+				}
+				continue
+			}
+
+			// Check if this line is a number (sample count)
+			if matched, _ := regexp.MatchString(`^\d+$`, line); matched {
+				// This is a count, process the accumulated stack
+				if len(currentStack) > 0 {
+					// Last item in stack is the process name
+					processName = currentStack[len(currentStack)-1]
+					// Remove process name from stack
+					stackLines := currentStack[:len(currentStack)-1]
+					stackTrace := strings.Join(stackLines, "\n")
+
+					count, _ := strconv.Atoi(line)
+
+					profile := models.CPUProfile{
+						ProcessName: processName,
+						StackTrace:  stackTrace,
+						SampleCount: count,
+					}
+
+					// Send to channel (non-blocking)
+					select {
+					case c.events <- profile:
+					default:
+						// Channel full, skip this event
+					}
+
+					// Reset for next stack
+					currentStack = []string{}
+					processName = ""
+				}
+				continue
+			}
+
+			// This is a stack frame, add to current stack
+			currentStack = append(currentStack, line)
+		}
+	}()
+
+	return nil
+}
+
+func (c *CPUProfileCollector) Stop() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.running {
+		return
+	}
+
+	if c.cancel != nil {
+		c.cancel()
+	}
+
+	if c.cmd != nil && c.cmd.Process != nil {
+		c.cmd.Process.Kill()
+	}
+
+	c.running = false
+}
+
+func (c *CPUProfileCollector) GetEvents() []models.CPUProfile {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var events []models.CPUProfile
+
+	// Drain the channel
+	for {
+		select {
+		case event := <-c.events:
+			events = append(events, event)
+		default:
+			return events
+		}
+	}
 }

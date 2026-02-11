@@ -17,11 +17,14 @@ func NewNetworkHandler(service services.NetworkService) *NetworkHandler {
 }
 
 func (h *NetworkHandler) GetRecentConnections(c *gin.Context) {
-	// Get limit from query parameter, default to 50
-	limitStr := c.DefaultQuery("limit", "50")
+	// Get limit from query parameter, default to 100, max 1000
+	limitStr := c.DefaultQuery("limit", "100")
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
-		limit = 50
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
 	}
 
 	connections, err := h.service.GetRecentConnections(limit)

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"ebpf-dashboard/collector"
 	"ebpf-dashboard/models"
 	"ebpf-dashboard/repository"
@@ -18,15 +19,18 @@ type NetworkService interface {
 type networkService struct {
 	repo      repository.NetworkRepository
 	collector *collector.NetworkCollector
-	stopChan  chan bool
+	ctx       context.Context
+	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 }
 
 func NewNetworkService(repo repository.NetworkRepository) NetworkService {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &networkService{
 		repo:      repo,
 		collector: collector.NewNetworkCollector(),
-		stopChan:  make(chan bool),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
@@ -46,17 +50,17 @@ func (s *networkService) StartCollecting() {
 
 		for {
 			select {
-			case <-s.stopChan:
+			case <-s.ctx.Done():
 				s.collector.Stop()
 				return
 			case <-ticker.C:
 				// Get accumulated events
 				events := s.collector.GetEvents()
 
-				// Save them to database
-				for _, event := range events {
-					if err := s.repo.SaveConnection(event); err != nil {
-						log.Printf("Error saving connection: %v", err)
+				// Save them to database using batch insert
+				if len(events) > 0 {
+					if err := s.repo.SaveConnections(events); err != nil {
+						log.Printf("Error saving connections: %v", err)
 					}
 				}
 			}
@@ -65,7 +69,7 @@ func (s *networkService) StartCollecting() {
 }
 
 func (s *networkService) StopCollecting() {
-	close(s.stopChan)
+	s.cancel()
 	s.wg.Wait()
 }
 

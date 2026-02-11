@@ -127,6 +127,9 @@ func (c *NetworkCollector) Stop() {
 }
 
 func (c *NetworkCollector) GetEvents() []models.NetworkConnection {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	var events []models.NetworkConnection
 
 	// Drain the channel
