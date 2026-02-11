@@ -61,6 +61,15 @@ func createTables(db *sql.DB) error {
 			range_max INTEGER,
 			count INTEGER
 		);`,
+
+		// CPU profiles table
+		`CREATE TABLE IF NOT EXISTS cpu_profiles (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+			process_name TEXT,
+			stack_trace TEXT,
+			sample_count INTEGER
+		);`,
 	}
 
 	for _, schema := range schemas {

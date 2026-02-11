@@ -27,21 +27,25 @@ func main() {
 	processRepo := repository.NewProcessRepository(db)
 	networkRepo := repository.NewNetworkRepository(db)
 	diskRepo := repository.NewDiskRepository(db)
+	cpuProfileRepo := repository.NewCPUProfileRepository(db)
 
 	// Initialize services
 	processService := services.NewProcessService(processRepo)
 	networkService := services.NewNetworkService(networkRepo)
 	diskService := services.NewDiskService(diskRepo)
+	cpuProfileService := services.NewCPUProfileService(cpuProfileRepo)
 
 	// Start background collectors
 	processService.StartCollecting()
 	networkService.StartCollecting()
 	diskService.StartCollecting()
+	cpuProfileService.Start()
 
 	// Initialize handlers
 	processHandler := handlers.NewProcessHandler(processService)
 	networkHandler := handlers.NewNetworkHandler(networkService)
 	diskHandler := handlers.NewDiskHandler(diskService)
+	cpuProfileHandler := handlers.NewCPUProfileHandler(cpuProfileService)
 	healthHandler := handlers.NewHealthHandler()
 
 	// Setup Gin router
@@ -53,6 +57,7 @@ func main() {
 		api.GET("/processes", processHandler.GetRecentProcesses)
 		api.GET("/network", networkHandler.GetRecentConnections)
 		api.GET("/disk", diskHandler.GetLatestLatency)
+		api.GET("/cpuprofile", cpuProfileHandler.GetCPUProfiles)
 	}
 	router.GET("/health", healthHandler.GetHealth)
 
@@ -66,6 +71,7 @@ func main() {
 		processService.StopCollecting()
 		networkService.StopCollecting()
 		diskService.StopCollecting()
+		cpuProfileService.Stop()
 		os.Exit(0)
 	}()
 
