@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #000000;
+  color: #e6e6e6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #303030;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Ant Design overrides for dark theme */
+.ant-layout {
+  background: #000000 !important;
+}
+
+.ant-layout-content {
+  background: transparent !important;
+}
+
+.ant-table {
+  background: transparent !important;
+}
+
+.ant-table-thead > tr > th {
+  border-bottom: 1px solid #1f1f1f !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid #1a1a1a !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #ffffff08 !important;
+}
+
+.ant-card-hoverable:hover {
+  border-color: #177ddc44 !important;
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+
+.ant-card {
+  transition: all 0.3s ease;
+}
+
+.ant-menu-item {
+  transition: all 0.2s ease !important;
+}
+
+.ant-input {
+  transition: all 0.2s ease;
+}
+
+.ant-input:focus,
+.ant-input-focused {
+  border-color: #177ddc !important;
+  box-shadow: 0 0 0 2px #177ddc22 !important;
+}
+
+.ant-tag {
+  border: none !important;
+}
+
+/* Stat value animation */
+.ant-statistic-content-value {
+  transition: color 0.3s ease;
+}
+
+/* Page transitions */
+.ant-layout-content > div {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Selection */
+::selection {
+  background: #177ddc44;
+  color: #ffffff;
+}
