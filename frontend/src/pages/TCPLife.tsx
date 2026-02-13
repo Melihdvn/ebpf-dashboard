@@ -1,7 +1,8 @@
 import { Table, Tag, Typography, Card, Space, Input, Statistic, Row, Col } from 'antd';
 import { ApiOutlined, SearchOutlined } from '@ant-design/icons';
 import { useState } from 'react';
-import { mockTCPLifeEvents } from '../mocks/mockData';
+import { api } from '../services/api';
+import { useApiData } from '../hooks/useApiData';
 import type { TCPLifeEvent } from '../types/types';
 
 const { Title } = Typography;
@@ -24,81 +25,11 @@ const formatKB = (kb: number) => {
   return `${(kb / 1024).toFixed(1)} MB`;
 };
 
-const columns = [
-  {
-    title: 'PID',
-    dataIndex: 'pid',
-    key: 'pid',
-    width: 80,
-    render: (pid: number) => <span style={{ fontFamily: 'monospace', color: '#13a8a8' }}>{pid}</span>,
-  },
-  {
-    title: 'Command',
-    dataIndex: 'comm',
-    key: 'comm',
-    width: 120,
-    render: (c: string) => <Tag color="cyan">{c}</Tag>,
-    filters: [...new Set(mockTCPLifeEvents.map((t) => t.comm))].map((c) => ({ text: c, value: c })),
-    onFilter: (value: unknown, record: TCPLifeEvent) => record.comm === value,
-  },
-  {
-    title: 'Local',
-    key: 'local',
-    render: (_: unknown, r: TCPLifeEvent) => (
-      <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
-        {r.local_addr}:<span style={{ color: '#177ddc' }}>{r.local_port}</span>
-      </span>
-    ),
-  },
-  {
-    title: '',
-    key: 'arrow',
-    width: 40,
-    render: () => <span style={{ color: '#ffffff44' }}>⇌</span>,
-  },
-  {
-    title: 'Remote',
-    key: 'remote',
-    render: (_: unknown, r: TCPLifeEvent) => (
-      <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
-        {r.remote_addr}:<span style={{ color: '#d89614' }}>{r.remote_port}</span>
-      </span>
-    ),
-  },
-  {
-    title: 'TX',
-    dataIndex: 'tx_kb',
-    key: 'tx_kb',
-    width: 100,
-    render: (v: number) => <span style={{ color: '#49aa19' }}>↑ {formatKB(v)}</span>,
-    sorter: (a: TCPLifeEvent, b: TCPLifeEvent) => a.tx_kb - b.tx_kb,
-  },
-  {
-    title: 'RX',
-    dataIndex: 'rx_kb',
-    key: 'rx_kb',
-    width: 100,
-    render: (v: number) => <span style={{ color: '#177ddc' }}>↓ {formatKB(v)}</span>,
-    sorter: (a: TCPLifeEvent, b: TCPLifeEvent) => a.rx_kb - b.rx_kb,
-  },
-  {
-    title: 'Duration',
-    dataIndex: 'duration_ms',
-    key: 'duration_ms',
-    width: 120,
-    render: (v: number) => (
-      <Tag color={getDurationColor(v)} style={{ fontWeight: 600 }}>
-        {formatDuration(v)}
-      </Tag>
-    ),
-    sorter: (a: TCPLifeEvent, b: TCPLifeEvent) => a.duration_ms - b.duration_ms,
-  },
-];
-
 export default function TCPLife() {
+  const { data } = useApiData({ fetchFn: () => api.getTCPLife(100) });
   const [search, setSearch] = useState('');
 
-  const filtered = mockTCPLifeEvents.filter(
+  const filtered = data.filter(
     (t) =>
       t.comm.toLowerCase().includes(search.toLowerCase()) ||
       t.local_addr.includes(search) ||
@@ -106,16 +37,91 @@ export default function TCPLife() {
       t.pid.toString().includes(search)
   );
 
-  const totalTX = mockTCPLifeEvents.reduce((s, t) => s + t.tx_kb, 0);
-  const totalRX = mockTCPLifeEvents.reduce((s, t) => s + t.rx_kb, 0);
-  const avgDuration = mockTCPLifeEvents.reduce((s, t) => s + t.duration_ms, 0) / mockTCPLifeEvents.length;
+  const totalTX = data.reduce((s, t) => s + t.tx_kb, 0);
+  const totalRX = data.reduce((s, t) => s + t.rx_kb, 0);
+  const avgDuration = data.length > 0 ? data.reduce((s, t) => s + t.duration_ms, 0) / data.length : 0;
+
+  const commFilters = [...new Set(data.map((t) => t.comm))].map((c) => ({ text: c, value: c }));
+
+  const columns = [
+    {
+      title: 'PID',
+      dataIndex: 'pid',
+      key: 'pid',
+      width: 80,
+      render: (pid: number) => <span style={{ fontFamily: 'monospace', color: '#13a8a8' }}>{pid}</span>,
+    },
+    {
+      title: 'Command',
+      dataIndex: 'comm',
+      key: 'comm',
+      width: 120,
+      render: (c: string) => <Tag color="cyan">{c}</Tag>,
+      filters: commFilters,
+      onFilter: (value: unknown, record: TCPLifeEvent) => record.comm === value,
+    },
+    {
+      title: 'Local',
+      key: 'local',
+      render: (_: unknown, r: TCPLifeEvent) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {r.local_addr}:<span style={{ color: '#177ddc' }}>{r.local_port}</span>
+        </span>
+      ),
+    },
+    {
+      title: '',
+      key: 'arrow',
+      width: 40,
+      render: () => <span style={{ color: '#ffffff44' }}>⇌</span>,
+    },
+    {
+      title: 'Remote',
+      key: 'remote',
+      render: (_: unknown, r: TCPLifeEvent) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {r.remote_addr}:<span style={{ color: '#d89614' }}>{r.remote_port}</span>
+        </span>
+      ),
+    },
+    {
+      title: 'TX',
+      dataIndex: 'tx_kb',
+      key: 'tx_kb',
+      width: 100,
+      render: (v: number) => <span style={{ color: '#49aa19' }}>↑ {formatKB(v)}</span>,
+      sorter: (a: TCPLifeEvent, b: TCPLifeEvent) => a.tx_kb - b.tx_kb,
+    },
+    {
+      title: 'RX',
+      dataIndex: 'rx_kb',
+      key: 'rx_kb',
+      width: 100,
+      render: (v: number) => <span style={{ color: '#177ddc' }}>↓ {formatKB(v)}</span>,
+      sorter: (a: TCPLifeEvent, b: TCPLifeEvent) => a.rx_kb - b.rx_kb,
+    },
+    {
+      title: 'Duration',
+      dataIndex: 'duration_ms',
+      key: 'duration_ms',
+      width: 120,
+      render: (v: number) => (
+        <Tag color={getDurationColor(v)} style={{ fontWeight: 600 }}>
+          {formatDuration(v)}
+        </Tag>
+      ),
+      sorter: (a: TCPLifeEvent, b: TCPLifeEvent) => a.duration_ms - b.duration_ms,
+    },
+  ];
 
   return (
     <div>
-      <Title level={3} style={{ color: '#e6e6e6', marginBottom: 24 }}>
-        <ApiOutlined style={{ marginRight: 10, color: '#13a8a8' }} />
-        TCP Connection Lifecycle
-      </Title>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <Title level={3} style={{ color: '#e6e6e6', margin: 0 }}>
+          <ApiOutlined style={{ marginRight: 10, color: '#13a8a8' }} />
+          TCP Connection Lifecycle
+        </Title>
+      </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={8}>

@@ -1,4 +1,4 @@
-import { Card, Col, Row, Statistic, Table, Tag, Typography } from 'antd';
+import { Card, Col, Row, Statistic, Table, Tag, Typography, Spin } from 'antd';
 import {
   CodeOutlined,
   GlobalOutlined,
@@ -7,61 +7,10 @@ import {
   ApiOutlined,
   FunctionOutlined,
 } from '@ant-design/icons';
-import {
-  mockProcesses,
-  mockNetworkConnections,
-  mockDiskLatency,
-  mockCPUProfiles,
-  mockTCPLifeEvents,
-  mockSyscallStats,
-} from '../mocks/mockData';
+import { api } from '../services/api';
+import { useApiData } from '../hooks/useApiData';
 
 const { Title } = Typography;
-
-const summaryCards = [
-  {
-    title: 'Active Processes',
-    value: mockProcesses.length,
-    icon: <CodeOutlined style={{ fontSize: 28, color: '#177ddc' }} />,
-    color: 'linear-gradient(135deg, #141e30 0%, #1a2a4a 100%)',
-    accent: '#177ddc',
-  },
-  {
-    title: 'Network Connections',
-    value: mockNetworkConnections.length,
-    icon: <GlobalOutlined style={{ fontSize: 28, color: '#49aa19' }} />,
-    color: 'linear-gradient(135deg, #1a2e1a 0%, #1a3a2a 100%)',
-    accent: '#49aa19',
-  },
-  {
-    title: 'Disk I/O Events',
-    value: mockDiskLatency.reduce((s, d) => s + d.count, 0).toLocaleString(),
-    icon: <HddOutlined style={{ fontSize: 28, color: '#d89614' }} />,
-    color: 'linear-gradient(135deg, #2a2010 0%, #3a2a10 100%)',
-    accent: '#d89614',
-  },
-  {
-    title: 'CPU Samples',
-    value: mockCPUProfiles.reduce((s, c) => s + c.sample_count, 0).toLocaleString(),
-    icon: <DashboardOutlined style={{ fontSize: 28, color: '#d32029' }} />,
-    color: 'linear-gradient(135deg, #2a1215 0%, #3a1520 100%)',
-    accent: '#d32029',
-  },
-  {
-    title: 'TCP Connections',
-    value: mockTCPLifeEvents.length,
-    icon: <ApiOutlined style={{ fontSize: 28, color: '#13a8a8' }} />,
-    color: 'linear-gradient(135deg, #112a2a 0%, #153a3a 100%)',
-    accent: '#13a8a8',
-  },
-  {
-    title: 'Unique Syscalls',
-    value: mockSyscallStats.length,
-    icon: <FunctionOutlined style={{ fontSize: 28, color: '#cb2b83' }} />,
-    color: 'linear-gradient(135deg, #2a1225 0%, #3a1530 100%)',
-    accent: '#cb2b83',
-  },
-];
 
 const recentProcessColumns = [
   { title: 'PID', dataIndex: 'pid', key: 'pid', width: 80 },
@@ -82,12 +31,76 @@ const topSyscallColumns = [
 ];
 
 export default function Dashboard() {
+  const processes = useApiData({ fetchFn: () => api.getProcesses(20) });
+  const network = useApiData({ fetchFn: () => api.getNetwork(20) });
+  const disk = useApiData({ fetchFn: () => api.getDisk() });
+  const cpu = useApiData({ fetchFn: () => api.getCPUProfile(20) });
+  const tcp = useApiData({ fetchFn: () => api.getTCPLife(20) });
+  const syscalls = useApiData({ fetchFn: () => api.getSyscalls(20) });
+
+  const isAnyLoading = processes.loading;
+
+  const summaryCards = [
+    {
+      title: 'Active Processes',
+      value: processes.data.length,
+      icon: <CodeOutlined style={{ fontSize: 28, color: '#177ddc' }} />,
+      color: 'linear-gradient(135deg, #141e30 0%, #1a2a4a 100%)',
+      accent: '#177ddc',
+    },
+    {
+      title: 'Network Connections',
+      value: network.data.length,
+      icon: <GlobalOutlined style={{ fontSize: 28, color: '#49aa19' }} />,
+      color: 'linear-gradient(135deg, #1a2e1a 0%, #1a3a2a 100%)',
+      accent: '#49aa19',
+    },
+    {
+      title: 'Disk I/O Events',
+      value: disk.data.reduce((s, d) => s + d.count, 0).toLocaleString(),
+      icon: <HddOutlined style={{ fontSize: 28, color: '#d89614' }} />,
+      color: 'linear-gradient(135deg, #2a2010 0%, #3a2a10 100%)',
+      accent: '#d89614',
+    },
+    {
+      title: 'CPU Samples',
+      value: cpu.data.reduce((s, c) => s + c.sample_count, 0).toLocaleString(),
+      icon: <DashboardOutlined style={{ fontSize: 28, color: '#d32029' }} />,
+      color: 'linear-gradient(135deg, #2a1215 0%, #3a1520 100%)',
+      accent: '#d32029',
+    },
+    {
+      title: 'TCP Connections',
+      value: tcp.data.length,
+      icon: <ApiOutlined style={{ fontSize: 28, color: '#13a8a8' }} />,
+      color: 'linear-gradient(135deg, #112a2a 0%, #153a3a 100%)',
+      accent: '#13a8a8',
+    },
+    {
+      title: 'Unique Syscalls',
+      value: syscalls.data.length,
+      icon: <FunctionOutlined style={{ fontSize: 28, color: '#cb2b83' }} />,
+      color: 'linear-gradient(135deg, #2a1225 0%, #3a1530 100%)',
+      accent: '#cb2b83',
+    },
+  ];
+
+  if (isAnyLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <Spin size="large" tip="Loading metrics..." />
+      </div>
+    );
+  }
+
   return (
     <div>
-      <Title level={3} style={{ color: '#e6e6e6', marginBottom: 24 }}>
-        <DashboardOutlined style={{ marginRight: 10, color: '#177ddc' }} />
-        System Overview
-      </Title>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <Title level={3} style={{ color: '#e6e6e6', margin: 0 }}>
+          <DashboardOutlined style={{ marginRight: 10, color: '#177ddc' }} />
+          System Overview
+        </Title>
+      </div>
 
       <Row gutter={[16, 16]}>
         {summaryCards.map((card, i) => (
@@ -132,7 +145,7 @@ export default function Dashboard() {
             style={{ background: '#141414', borderColor: '#303030', borderRadius: 12 }}
           >
             <Table
-              dataSource={mockProcesses.slice(0, 8)}
+              dataSource={processes.data.slice(0, 8)}
               columns={recentProcessColumns}
               rowKey="id"
               pagination={false}
@@ -146,7 +159,7 @@ export default function Dashboard() {
             style={{ background: '#141414', borderColor: '#303030', borderRadius: 12 }}
           >
             <Table
-              dataSource={[...mockSyscallStats].sort((a, b) => b.count - a.count).slice(0, 8)}
+              dataSource={[...syscalls.data].sort((a, b) => b.count - a.count).slice(0, 8)}
               columns={topSyscallColumns}
               rowKey="id"
               pagination={false}

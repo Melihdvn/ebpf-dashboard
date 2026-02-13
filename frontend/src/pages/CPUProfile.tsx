@@ -1,62 +1,18 @@
 import { Table, Tag, Typography, Card, Space, Input } from 'antd';
 import { DashboardOutlined, SearchOutlined } from '@ant-design/icons';
 import { useState } from 'react';
-import { mockCPUProfiles } from '../mocks/mockData';
-import type { CPUProfile } from '../types/types';
 import { Bar } from '@ant-design/charts';
+import { api } from '../services/api';
+import { useApiData } from '../hooks/useApiData';
+import type { CPUProfile } from '../types/types';
 
 const { Title } = Typography;
 
-const columns = [
-  {
-    title: 'Process',
-    dataIndex: 'process_name',
-    key: 'process_name',
-    width: 130,
-    render: (name: string) => <Tag color="red">{name}</Tag>,
-    filters: [...new Set(mockCPUProfiles.map((c) => c.process_name))].map((n) => ({ text: n, value: n })),
-    onFilter: (value: unknown, record: CPUProfile) => record.process_name === value,
-  },
-  {
-    title: 'Sample Count',
-    dataIndex: 'sample_count',
-    key: 'sample_count',
-    width: 130,
-    sorter: (a: CPUProfile, b: CPUProfile) => a.sample_count - b.sample_count,
-    render: (v: number) => (
-      <span style={{ color: v > 200 ? '#d32029' : v > 100 ? '#d89614' : '#49aa19', fontWeight: 600 }}>
-        {v.toLocaleString()}
-      </span>
-    ),
-  },
-  {
-    title: 'Stack Trace',
-    dataIndex: 'stack_trace',
-    key: 'stack_trace',
-    render: (trace: string) => (
-      <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#ffffffcc', wordBreak: 'break-all' as const }}>
-        {trace.split(';').map((frame, i) => (
-          <span key={i}>
-            {i > 0 && <span style={{ color: '#ffffff44' }}> → </span>}
-            <span style={{ color: i === 0 ? '#177ddc' : '#ffffffaa' }}>{frame}</span>
-          </span>
-        ))}
-      </div>
-    ),
-  },
-  {
-    title: 'Timestamp',
-    dataIndex: 'timestamp',
-    key: 'timestamp',
-    width: 180,
-    render: (t: string) => <span style={{ color: '#ffffff66', fontSize: 12 }}>{new Date(t).toLocaleString()}</span>,
-  },
-];
-
 export default function CPUProfilePage() {
+  const { data } = useApiData({ fetchFn: () => api.getCPUProfile(100) });
   const [search, setSearch] = useState('');
 
-  const filtered = mockCPUProfiles.filter(
+  const filtered = data.filter(
     (c) =>
       c.process_name.toLowerCase().includes(search.toLowerCase()) ||
       c.stack_trace.toLowerCase().includes(search.toLowerCase())
@@ -64,7 +20,7 @@ export default function CPUProfilePage() {
 
   // Aggregate by process for chart
   const processMap = new Map<string, number>();
-  mockCPUProfiles.forEach((c) => {
+  data.forEach((c) => {
     processMap.set(c.process_name, (processMap.get(c.process_name) || 0) + c.sample_count);
   });
   const chartData = Array.from(processMap, ([name, count]) => ({ process: name, samples: count }))
@@ -90,12 +46,60 @@ export default function CPUProfilePage() {
     theme: 'dark',
   };
 
+  const columns = [
+    {
+      title: 'Process',
+      dataIndex: 'process_name',
+      key: 'process_name',
+      width: 130,
+      render: (name: string) => <Tag color="red">{name}</Tag>,
+      filters: [...new Set(data.map((c) => c.process_name))].map((n) => ({ text: n, value: n })),
+      onFilter: (value: unknown, record: CPUProfile) => record.process_name === value,
+    },
+    {
+      title: 'Sample Count',
+      dataIndex: 'sample_count',
+      key: 'sample_count',
+      width: 130,
+      sorter: (a: CPUProfile, b: CPUProfile) => a.sample_count - b.sample_count,
+      render: (v: number) => (
+        <span style={{ color: v > 200 ? '#d32029' : v > 100 ? '#d89614' : '#49aa19', fontWeight: 600 }}>
+          {v.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      title: 'Stack Trace',
+      dataIndex: 'stack_trace',
+      key: 'stack_trace',
+      render: (trace: string) => (
+        <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#ffffffcc', wordBreak: 'break-all' as const }}>
+          {trace.split(';').map((frame, i) => (
+            <span key={i}>
+              {i > 0 && <span style={{ color: '#ffffff44' }}> → </span>}
+              <span style={{ color: i === 0 ? '#177ddc' : '#ffffffaa' }}>{frame}</span>
+            </span>
+          ))}
+        </div>
+      ),
+    },
+    {
+      title: 'Timestamp',
+      dataIndex: 'timestamp',
+      key: 'timestamp',
+      width: 180,
+      render: (t: string) => <span style={{ color: '#ffffff66', fontSize: 12 }}>{new Date(t).toLocaleString()}</span>,
+    },
+  ];
+
   return (
     <div>
-      <Title level={3} style={{ color: '#e6e6e6', marginBottom: 24 }}>
-        <DashboardOutlined style={{ marginRight: 10, color: '#d32029' }} />
-        CPU Profiling
-      </Title>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <Title level={3} style={{ color: '#e6e6e6', margin: 0 }}>
+          <DashboardOutlined style={{ marginRight: 10, color: '#d32029' }} />
+          CPU Profiling
+        </Title>
+      </div>
 
       <Card
         title={<span style={{ color: '#e6e6e6' }}>CPU Samples by Process</span>}

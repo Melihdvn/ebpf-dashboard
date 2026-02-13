@@ -1,22 +1,26 @@
 import { Typography, Card, Row, Col, Statistic } from 'antd';
 import { HddOutlined } from '@ant-design/icons';
 import { Column } from '@ant-design/charts';
-import { mockDiskLatency } from '../mocks/mockData';
+import { api } from '../services/api';
+import { useApiData } from '../hooks/useApiData';
 
 const { Title } = Typography;
 
 export default function DiskIO() {
-  const chartData = mockDiskLatency.map((d) => ({
+  const { data } = useApiData({ fetchFn: () => api.getDisk() });
+
+  const chartData = data.map((d) => ({
     range: d.range_max <= 1023
       ? `${d.range_min}-${d.range_max} µs`
       : `${(d.range_min / 1024).toFixed(0)}-${(d.range_max / 1024).toFixed(0)} ms`,
     count: d.count,
   }));
 
-  const totalIO = mockDiskLatency.reduce((s, d) => s + d.count, 0);
-  const peakBucket = mockDiskLatency.reduce((max, d) => (d.count > max.count ? d : max), mockDiskLatency[0]);
-  const avgLatency =
-    mockDiskLatency.reduce((s, d) => s + ((d.range_min + d.range_max) / 2) * d.count, 0) / totalIO;
+  const totalIO = data.reduce((s, d) => s + d.count, 0);
+  const peakBucket = data.length > 0 ? data.reduce((max, d) => (d.count > max.count ? d : max), data[0]) : null;
+  const avgLatency = totalIO > 0
+    ? data.reduce((s, d) => s + ((d.range_min + d.range_max) / 2) * d.count, 0) / totalIO
+    : 0;
 
   const config = {
     data: chartData,
@@ -52,10 +56,12 @@ export default function DiskIO() {
 
   return (
     <div>
-      <Title level={3} style={{ color: '#e6e6e6', marginBottom: 24 }}>
-        <HddOutlined style={{ marginRight: 10, color: '#d89614' }} />
-        Disk I/O Latency
-      </Title>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <Title level={3} style={{ color: '#e6e6e6', margin: 0 }}>
+          <HddOutlined style={{ marginRight: 10, color: '#d89614' }} />
+          Disk I/O Latency
+        </Title>
+      </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={8}>
@@ -71,7 +77,7 @@ export default function DiskIO() {
           <Card style={{ background: '#141414', borderColor: '#303030', borderRadius: 12 }}>
             <Statistic
               title={<span style={{ color: '#ffffffaa' }}>Peak Latency Range</span>}
-              value={`${peakBucket.range_min}-${peakBucket.range_max} µs`}
+              value={peakBucket ? `${peakBucket.range_min}-${peakBucket.range_max} µs` : '-'}
               valueStyle={{ color: '#d32029', fontSize: 20 }}
             />
           </Card>
