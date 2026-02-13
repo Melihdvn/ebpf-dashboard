@@ -111,6 +111,9 @@ func (c *ProcessCollector) Stop() {
 }
 
 func (c *ProcessCollector) GetEvents() []models.ProcessEvent {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	var events []models.ProcessEvent
 
 	// Drain the channel

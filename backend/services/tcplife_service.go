@@ -1,30 +1,41 @@
 package services
 
 import (
+	"context"
 	"ebpf-dashboard/collector"
+	"ebpf-dashboard/models"
 	"ebpf-dashboard/repository"
 	"log"
 	"sync"
 	"time"
 )
 
-type TCPLifeService struct {
+type TCPLifeService interface {
+	StartCollecting() error
+	StopCollecting()
+	GetRecentEvents(limit int) ([]models.TCPLifeEvent, error)
+}
+
+type tcpLifeService struct {
 	collector *collector.TCPLifeCollector
 	repo      *repository.TCPLifeRepository
-	stopChan  chan struct{}
+	ctx       context.Context
+	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 }
 
-func NewTCPLifeService(repo *repository.TCPLifeRepository) *TCPLifeService {
-	return &TCPLifeService{
+func NewTCPLifeService(repo *repository.TCPLifeRepository) TCPLifeService {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &tcpLifeService{
 		collector: collector.NewTCPLifeCollector(),
 		repo:      repo,
-		stopChan:  make(chan struct{}),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
 // StartCollecting starts the background collection process
-func (s *TCPLifeService) StartCollecting() error {
+func (s *tcpLifeService) StartCollecting() error {
 	if err := s.collector.Start(); err != nil {
 		return err
 	}
@@ -36,13 +47,13 @@ func (s *TCPLifeService) StartCollecting() error {
 }
 
 // StopCollecting stops the background collection process
-func (s *TCPLifeService) StopCollecting() {
+func (s *tcpLifeService) StopCollecting() {
+	s.cancel()
 	s.collector.Stop()
-	close(s.stopChan)
 	s.wg.Wait()
 }
 
-func (s *TCPLifeService) processEvents() {
+func (s *tcpLifeService) processEvents() {
 	defer s.wg.Done()
 
 	ticker := time.NewTicker(1 * time.Second)
@@ -50,7 +61,7 @@ func (s *TCPLifeService) processEvents() {
 
 	for {
 		select {
-		case <-s.stopChan:
+		case <-s.ctx.Done():
 			return
 		case <-ticker.C:
 			events := s.collector.GetEvents()
@@ -64,6 +75,6 @@ func (s *TCPLifeService) processEvents() {
 }
 
 // GetRecentEvents retrieves recent TCP lifecycle events
-func (s *TCPLifeService) GetRecentEvents(limit int) (interface{}, error) {
+func (s *tcpLifeService) GetRecentEvents(limit int) ([]models.TCPLifeEvent, error) {
 	return s.repo.GetRecentTCPLifeEvents(limit)
 }

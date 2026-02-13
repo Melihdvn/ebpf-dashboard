@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"ebpf-dashboard/collector"
 	"ebpf-dashboard/models"
 	"ebpf-dashboard/repository"
@@ -18,15 +19,18 @@ type ProcessService interface {
 type processService struct {
 	repo      repository.ProcessRepository
 	collector *collector.ProcessCollector
-	stopChan  chan bool
+	ctx       context.Context
+	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 }
 
 func NewProcessService(repo repository.ProcessRepository) ProcessService {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &processService{
 		repo:      repo,
 		collector: collector.NewProcessCollector(),
-		stopChan:  make(chan bool),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
@@ -46,17 +50,17 @@ func (s *processService) StartCollecting() {
 
 		for {
 			select {
-			case <-s.stopChan:
+			case <-s.ctx.Done():
 				s.collector.Stop()
 				return
 			case <-ticker.C:
 				// Get accumulated events
 				events := s.collector.GetEvents()
 
-				// Save them to database
-				for _, event := range events {
-					if err := s.repo.SaveProcess(event); err != nil {
-						log.Printf("Error saving process: %v", err)
+				// Save them to database using batch insert
+				if len(events) > 0 {
+					if err := s.repo.SaveProcesses(events); err != nil {
+						log.Printf("Error saving processes: %v", err)
 					}
 				}
 			}
@@ -65,7 +69,7 @@ func (s *processService) StartCollecting() {
 }
 
 func (s *processService) StopCollecting() {
-	close(s.stopChan)
+	s.cancel()
 	s.wg.Wait()
 }
 

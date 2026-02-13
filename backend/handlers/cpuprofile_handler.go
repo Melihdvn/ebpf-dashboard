@@ -9,21 +9,25 @@ import (
 )
 
 type CPUProfileHandler struct {
-	service *services.CPUProfileService
+	service services.CPUProfileService
 }
 
-func NewCPUProfileHandler(service *services.CPUProfileService) *CPUProfileHandler {
+func NewCPUProfileHandler(service services.CPUProfileService) *CPUProfileHandler {
 	return &CPUProfileHandler{service: service}
 }
 
 // GetCPUProfiles handles GET /api/metrics/cpuprofile
 func (h *CPUProfileHandler) GetCPUProfiles(c *gin.Context) {
-	// Get limit from query params (default: 50)
+	// Get limit from query params (default: 100, max: 1000)
 	limitStr := c.Query("limit")
-	limit := 50
+	limit := 100
 	if limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
-			limit = parsedLimit
+			if parsedLimit > 1000 {
+				limit = 1000
+			} else {
+				limit = parsedLimit
+			}
 		}
 	}
 
@@ -33,5 +37,8 @@ func (h *CPUProfileHandler) GetCPUProfiles(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, profiles)
+	c.JSON(http.StatusOK, gin.H{
+		"count": len(profiles),
+		"data":  profiles,
+	})
 }

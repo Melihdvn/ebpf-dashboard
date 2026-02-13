@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"ebpf-dashboard/collector"
 	"ebpf-dashboard/models"
 	"ebpf-dashboard/repository"
@@ -16,19 +17,30 @@ type DiskService interface {
 }
 
 type diskService struct {
-	repo     repository.DiskRepository
-	stopChan chan bool
-	wg       sync.WaitGroup
+	repo      repository.DiskRepository
+	collector *collector.DiskCollector
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
 }
 
 func NewDiskService(repo repository.DiskRepository) DiskService {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &diskService{
-		repo:     repo,
-		stopChan: make(chan bool),
+		repo:      repo,
+		collector: collector.NewDiskCollector(),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
 func (s *diskService) StartCollecting() {
+	// Start the streaming collector
+	if err := s.collector.Start(); err != nil {
+		log.Printf("Failed to start disk collector: %v", err)
+		return
+	}
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -39,16 +51,11 @@ func (s *diskService) StartCollecting() {
 
 		for {
 			select {
-			case <-s.stopChan:
+			case <-s.ctx.Done():
 				log.Println("Disk latency collector stopped")
 				return
 			case <-ticker.C:
-				latencies, err := collector.CollectDiskLatency()
-				if err != nil {
-					log.Printf("Error collecting disk latency: %v", err)
-					continue
-				}
-
+				latencies := s.collector.GetEvents()
 				if len(latencies) > 0 {
 					if err := s.repo.SaveLatencySnapshot(latencies); err != nil {
 						log.Printf("Error saving disk latency: %v", err)
@@ -60,7 +67,8 @@ func (s *diskService) StartCollecting() {
 }
 
 func (s *diskService) StopCollecting() {
-	close(s.stopChan)
+	s.cancel()
+	s.collector.Stop()
 	s.wg.Wait()
 }
 

@@ -53,6 +53,14 @@ func createTables(db *sql.DB) error {
 			dest_port TEXT
 		);`,
 
+		// Indexes for performance
+		`CREATE INDEX IF NOT EXISTS idx_processes_timestamp ON processes(timestamp);`,
+		`CREATE INDEX IF NOT EXISTS idx_network_timestamp ON network_connections(timestamp);`,
+		`CREATE INDEX IF NOT EXISTS idx_disk_timestamp ON disk_latency(timestamp);`,
+		`CREATE INDEX IF NOT EXISTS idx_cpu_timestamp ON cpu_profiles(timestamp);`,
+		`CREATE INDEX IF NOT EXISTS idx_tcp_timestamp ON tcp_lifecycle(timestamp);`,
+		`CREATE INDEX IF NOT EXISTS idx_syscall_timestamp ON syscall_stats(timestamp);`,
+
 		// Disk latency table
 		`CREATE TABLE IF NOT EXISTS disk_latency (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -9,21 +9,25 @@ import (
 )
 
 type SyscallHandler struct {
-	service *services.SyscallService
+	service services.SyscallService
 }
 
-func NewSyscallHandler(service *services.SyscallService) *SyscallHandler {
+func NewSyscallHandler(service services.SyscallService) *SyscallHandler {
 	return &SyscallHandler{service: service}
 }
 
 // GetSyscallStats handles GET /api/metrics/syscalls
 func (h *SyscallHandler) GetSyscallStats(c *gin.Context) {
-	// Get limit from query params (default: 50)
+	// Get limit from query params (default: 100, max: 1000)
 	limitStr := c.Query("limit")
-	limit := 50
+	limit := 100
 	if limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
-			limit = parsedLimit
+			if parsedLimit > 1000 {
+				limit = 1000
+			} else {
+				limit = parsedLimit
+			}
 		}
 	}
 
@@ -33,5 +37,8 @@ func (h *SyscallHandler) GetSyscallStats(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, stats)
+	c.JSON(http.StatusOK, gin.H{
+		"count": len(stats),
+		"data":  stats,
+	})
 }

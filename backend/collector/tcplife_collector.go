@@ -154,6 +154,9 @@ func (c *TCPLifeCollector) Stop() {
 }
 
 func (c *TCPLifeCollector) GetEvents() []models.TCPLifeEvent {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	var events []models.TCPLifeEvent
 
 	// Drain the channel

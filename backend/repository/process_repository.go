@@ -7,6 +7,7 @@ import (
 
 type ProcessRepository interface {
 	SaveProcess(p models.ProcessEvent) error
+	SaveProcesses(processes []models.ProcessEvent) error
 	GetRecentProcesses(limit int) ([]models.ProcessEvent, error)
 }
 
@@ -24,6 +25,32 @@ func (r *processRepository) SaveProcess(p models.ProcessEvent) error {
 		p.Time, p.PID, p.Comm, p.Args,
 	)
 	return err
+}
+
+func (r *processRepository) SaveProcesses(processes []models.ProcessEvent) error {
+	if len(processes) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare("INSERT INTO processes (time, pid, comm, args) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, p := range processes {
+		if _, err := stmt.Exec(p.Time, p.PID, p.Comm, p.Args); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *processRepository) GetRecentProcesses(limit int) ([]models.ProcessEvent, error) {

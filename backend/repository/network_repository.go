@@ -7,6 +7,7 @@ import (
 
 type NetworkRepository interface {
 	SaveConnection(conn models.NetworkConnection) error
+	SaveConnections(connections []models.NetworkConnection) error
 	GetRecentConnections(limit int) ([]models.NetworkConnection, error)
 }
 
@@ -27,6 +28,35 @@ func (r *networkRepository) SaveConnection(conn models.NetworkConnection) error 
 		conn.SourcePort, conn.DestAddr, conn.DestPort,
 	)
 	return err
+}
+
+func (r *networkRepository) SaveConnections(connections []models.NetworkConnection) error {
+	if len(connections) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT INTO network_connections 
+		(pid, comm, ip_version, source_addr, source_port, dest_addr, dest_port) 
+		VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, conn := range connections {
+		if _, err := stmt.Exec(conn.PID, conn.Comm, conn.IPVersion, conn.SourceAddr,
+			conn.SourcePort, conn.DestAddr, conn.DestPort); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *networkRepository) GetRecentConnections(limit int) ([]models.NetworkConnection, error) {

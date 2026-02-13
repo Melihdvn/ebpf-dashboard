@@ -9,21 +9,25 @@ import (
 )
 
 type TCPLifeHandler struct {
-	service *services.TCPLifeService
+	service services.TCPLifeService
 }
 
-func NewTCPLifeHandler(service *services.TCPLifeService) *TCPLifeHandler {
+func NewTCPLifeHandler(service services.TCPLifeService) *TCPLifeHandler {
 	return &TCPLifeHandler{service: service}
 }
 
 // GetTCPLifeEvents handles GET /api/metrics/tcplife
 func (h *TCPLifeHandler) GetTCPLifeEvents(c *gin.Context) {
-	// Get limit from query params (default: 50)
+	// Get limit from query params (default: 100, max: 1000)
 	limitStr := c.Query("limit")
-	limit := 50
+	limit := 100
 	if limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
-			limit = parsedLimit
+			if parsedLimit > 1000 {
+				limit = 1000
+			} else {
+				limit = parsedLimit
+			}
 		}
 	}
 
@@ -33,5 +37,8 @@ func (h *TCPLifeHandler) GetTCPLifeEvents(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, events)
+	c.JSON(http.StatusOK, gin.H{
+		"count": len(events),
+		"data":  events,
+	})
 }
